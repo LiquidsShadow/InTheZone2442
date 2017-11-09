@@ -124,10 +124,14 @@ void actuallyDriveStraight(int time)
 	setLeftMotors(masterPower);
 	int err;
 	int adjustedPower;
+	int left;
+	int right;
 	while(time100(T1)<time*10)
 	{
+		int left = - SensorValue[leftQuad];
+		right = SensorValue[rightQuad];
 		err = SensorValue[leftQuad] - SensorValue[rightQuad];
-		adjustedPower = 0.2*err;
+		adjustedPower = 0.3*err;
 		setRightMotors(masterPower + adjustedPower);
 
 		SensorValue[rightQuad] = 0;

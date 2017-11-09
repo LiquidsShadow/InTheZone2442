@@ -120,16 +120,19 @@ void actuallyDriveStraight(int time)
 	SensorValue[rightQuad] = 0;
 	SensorValue[leftQuad]= 0;
 	int masterPower = 100;
+	setRightMotors(masterPower);
 	setLeftMotors(masterPower);
 	int err;
 	int adjustedPower;
 	while(time100(T1)<time*10)
 	{
-		err = SensorValue[rightQuad] - SensorValue[leftQuad];
-		adjustedPower = 0.3*err;
-		setRightMotors(adjustedPower);
+		err = SensorValue[leftQuad] - SensorValue[rightQuad];
+		adjustedPower = 0.2*err;
+		setRightMotors(masterPower + adjustedPower);
 
 		SensorValue[rightQuad] = 0;
 		SensorValue[leftQuad] = 0;
+
+		wait1Msec(50);
 	}
 }

@@ -31,7 +31,7 @@
 
 #include "Vex_Competition_Includes.c"
 #include "\InTheZoneLibrary.c"
-#include "\BCI-master\BCI.h"
+//#include "\BCI-master\BCI.h"
 //#include "\BCI-master\drivingFunctions.c"
 //#include "\BCI-master\turningFunctions.c"
 
@@ -165,7 +165,10 @@ task usercontrol()
 	while(true)
 	{
 		if(vexRT[Btn7L]==1)
-			runBasicCompAuton(5);
+		{
+			actuallyDriveStraight(2);
+			//runBasicCompAuton(5);
+		}
 		//testing led
 		if(SensorValue[liftPoten]<1000)
 		{
@@ -238,7 +241,7 @@ task usercontrol()
 		}
 		else if(rightTriggerDown == 1)
 		{
-desired = BACK;
+			desired = BACK;
 			kp = BACK_KP;
 			startTask(setLiftPos);
 		}

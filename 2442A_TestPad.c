@@ -70,14 +70,14 @@ Sets mobile base lift to a position while proportionally decreasing motor power 
 */
 void setMobileBaseLiftToPos(int liftPos)
 {
-	
+
 }
 
 /**
 Drives for some distance but also moves mobile base lift in and out and the same time
 Main use in autonomous/programming skills because it may cut down time
 @param ticks - distance for drive encoders in ticks
-@param MBL_stop - stop point for moving the lift in/out of the way 
+@param MBL_stop - stop point for moving the lift in/out of the way
 */
 void driveAndMoveMBL(int ticks, int MBL_stop)
 {

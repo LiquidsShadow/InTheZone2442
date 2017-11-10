@@ -27,15 +27,20 @@ const float MBL_CONV = 0.15; // Mobile Base Lift Conversion
 const float PINC_CONV = 0.75; // Pincer Conversion
 const float DRIVE_CONV_R = 1.0; // Right Drive Conversion
 const float DRIVE_CONV_L = 0.65; // Left Drive Conversion
+
 const float DRIVE_EN = 10.0; // Drive Encoder buffer zone
 const float LIFT_POT = 5.0; // Lift Poten buffer zone
 const float PINC_POT = 5.0; // Pincer Poten buffer zone
-const int JOY = 15; // Joystick dead zone
+const float JOY = 15.0; // Joystick dead zone
 
-static int liftPos = 0; // Global Variable for use in lift task
-static int wait = 0; // Global Variable for use in mobile base lift task
+int liftPos = 0; // Global Variable for use in lift task
+int pincerPos = 0; // Global Variable for use in pincer task
+int wait = 0; // Global Variable for use in mobile base lift task
 
-enum CTRL_POS {MLU = 0, MLD = 0, MBLU = 0, MBLD = 0, PIN_O = 1960, PIN_C = 300}; // Control positions for lifts and pincers
+// main lift up, main lift suspended (to use mobile base lift), main lift down
+// mobile base lift up, mobile base lift down
+// pincer open, pincer holding cone, piner closed
+enum CTRL_POS {MLU = 0, MLS = 0, MLD = 0, MBLU = 0, MBLD = 0, PIN_O = 0, PINC_HC = 0, PIN_C = 0};
 
 /**
 Sets left drive motors to a power.
@@ -149,6 +154,24 @@ void setMobileBaseLiftPower(int pwr)
 	motor[mobileBaseLiftRight] = pwr;
 }
 /**
+Task to move mobile base lift out while driving
+*/
+task mblOut()
+{
+	setMobileBaseLiftPower(MBL_CONV * 127);
+	wait1Msec(wait);
+	setMobileBaseLiftPower(0);
+}
+/**
+Task to move mobile base lift in while driving
+*/
+task mblIn()
+{
+	setMobileBaseLiftPower(MBL_CONV * -127);
+	wait1Msec(wait);
+	setMobileBaseLiftPower(0);
+}
+/**
 Sets main lift motor(s) to a power
 @param liftPower - a power.
 */
@@ -177,30 +200,12 @@ void mlToPosBasic(int pos)
 
 	setMainLiftPower(0); // clean
 }
-/*
+/**
 Task version of function mlToPosBasic()
 */
 task mlToPos()
 {
 	mlToPosBasic(liftPos);
-}
-/**
-Task to move mobile base lift out while driving
-*/
-task mblOut()
-{
-	setMobileBaseLiftPower(MBL_CONV * 127);
-	wait1Msec(wait);
-	setMobileBaseLiftPower(0);
-}
-/**
-Task to move mobile base lift in while driving
-*/
-task mblIn()
-{
-	setMobileBaseLiftPower(MBL_CONV * -127);
-	wait1Msec(wait);
-	setMobileBaseLiftPower(0);
 }
 /**
 Sets pincer motor(s) to a power
@@ -211,12 +216,31 @@ void setPincerPower(int pincerPower)
 	motor[pincers] = pincerPower;
 }
 /**
-Sets pincer to a position while decreasing motor power
+Sets pincer to a position
 @param pincerPos - a position
 */
-void setPincersToPos(int pincerPos)
+void pincToPosBasic(int pos)
 {
+	int curr = SensorValue[pincerPot]; // current potentiometer value
+	int dist = pos - curr; // distance to travel.. if negative, lift has to move down; if positive, lift has to move up
+	bool pincAtDest = false;
 
+	while (!pincAtDest)
+	{
+		setPincerPower(127 * sgn(dist) * PINC_CONV); // must set direction based on whether lift must go up or down
+		curr = SensorValue[pincerPot];
+		dist = pos - curr;
+		pincAtDest = fabs(dist) > PINC_POT;
+	}
+
+	setPincerPower(0); // clean
+}
+/**
+Task version of function pincToPosBasic()
+*/
+task pincToPos()
+{
+	pincToPosBasic(pincerPos);
 }
 /**
 Drives for some distance but also moves main lift up/down at the same time
@@ -314,14 +338,14 @@ task usercontrol()
 		word leftTriggerDOWN = vexRT[Btn5D]; // trigger to close pincers
 
 		// Drive Control
-		if(fabs(leftJoy) > (float) JOY) {
+		if(fabs(leftJoy) > JOY) {
 			setLeftMotors(DRIVE_CONV_L * leftJoy);
 		}
 		else {
 			setLeftMotors(0);
 		}
 
-		if(fabs(rightJoy) > (float) JOY) {
+		if(fabs(rightJoy) > JOY) {
 			setRightMotors(DRIVE_CONV_R * rightJoy);
 		}
 		else {

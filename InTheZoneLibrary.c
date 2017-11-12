@@ -27,7 +27,7 @@ float rightPowerAdjustment = 0;
 float leftPowerAdjustment = 0;
 float theta = 0;
 
-task correctStraight()
+task correctStraight() //UNUSED METHOD/FOR TESTING GYRO
 {
 	int adjustedTheta = (int) (theta * 10);
 	int err = adjustedTheta;
@@ -80,7 +80,7 @@ void setClawPower(int power)
 
 }
 
-void turnDeg(int angle)
+void turnDeg(int angle) //TO BE REMOVED AFTER EVERYTHING IS CONVERTED TO TURNTOPOS()
 {
 	SensorValue[rightQuad] = 0;
 	SensorValue[leftQuad] = 0;
@@ -99,22 +99,6 @@ void turnDeg(int angle)
 	setRightMotors(sgn(angle) * -63);
 	setLeftMotors(sgn(angle) * 63);
 	wait10Msec(3);
-	setAllDriveMotors(0);
-}
-
-void driveStraight(int dest,float kp, float kbias)
-{
-	SensorValue[leftQuad] = 0;
-	int err = dest;
-	int power = 127;
-	while(abs(err)>20)
-	{
-		err = dest - SensorValue[leftQuad];
-		//power = (int) (err*127.0/dest*kp + kbias);
-		power = 127*kp*sgn(err);
-		setAllDriveMotors(power);
-		//writeDebugStreamLine("err: %d, power: %d, kp: %d, kbias: %d, power?:", err, power, kp, kbias, err*127/dest*kp);
-	}
 	setAllDriveMotors(0);
 }
 
@@ -137,9 +121,8 @@ void driveStraightAuton(int dest, int basePower, float rightMultiplier)
 	setAllDriveMotors(0);
 }
 
-void turnToPos(int pos, int dir) //dir = 1 (clockwise) or -1 (counterclockwise)
+void turnToPos(int pos)
 {
-	writeDebugStreamLine("in turnToPos");
 	int err = pos - SensorValue[gyro];
 	int power;
 	while(fabs(err) > 50)

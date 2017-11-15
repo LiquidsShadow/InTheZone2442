@@ -2,7 +2,10 @@
 #pragma config(Sensor, in2,    liftPoten,      sensorPotentiometer)
 #pragma config(Sensor, in3,    rightClawPoten, sensorPotentiometer)
 #pragma config(Sensor, dgtl1,  leftQuad,       sensorQuadEncoder)
-#pragma config(Sensor, dgtl3,  rightQuad,      sensorQuadEncoder)
+#pragma config(Sensor, dgtl6,  rightQuad,      sensorQuadEncoder)
+#pragma config(Sensor, dgtl8,  redLED,         sensorLEDtoVCC)
+#pragma config(Sensor, dgtl9,  yellowLED,      sensorLEDtoVCC)
+#pragma config(Sensor, dgtl10, greenLED,       sensorLEDtoVCC)
 #pragma config(Sensor, dgtl11, leftPiston,     sensorDigitalOut)
 #pragma config(Sensor, dgtl12, rightPiston,    sensorDigitalOut)
 #pragma config(Motor,  port1,           claw2,         tmotorVex393_HBridge, openLoop, reversed)
@@ -21,112 +24,40 @@
 
 void setLeftMotors(int power)
 {
-    motor[driveLeftFront] = power;
-    motor[driveLeftBack] = power;
+	motor[driveLeftFront] = power;
+	motor[driveLeftBack] = power;
 }
 
 void setRightMotors(int power)
 {
-    motor[driveRightFront] = (int) (power*0.55);
-    motor[driveRightBack] = (int) (power*0.55);
-  }
+	motor[driveRightFront] = (int) (power*0.58);
+	motor[driveRightBack] = (int) (power*0.58);
+}
 void setAllDriveMotors(int power)
 {
-		setLeftMotors(power);
-		setRightMotors(power);
+	setLeftMotors(power);
+	setRightMotors(power);
 }
 
 void setLiftPower(int power)
 {
-    motor[liftLeft] = power;
-    motor[liftRight] = power;
+	motor[liftLeft] = power;
+	motor[liftRight] = power;
 }
 
 void setForkliftPower(int power)
 {
-    //motor[forklift] = power;
-		SensorValue[rightPiston] = power;
-		SensorValue[leftPiston]  = power;
+	//motor[forklift] = power;
+	SensorValue[rightPiston] = power;
+	SensorValue[leftPiston]  = power;
 }
 
 void setClawPower(int power)
 {
-    motor[claw] = power;
-    motor[claw2] = power;
+	motor[claw] = power;
+	motor[claw2] = power;
 
 }
-void setLiftPos(int desired, float pAdjustment)
-{
-		clearTimer(T2);
-			int err = desired - SensorValue[liftPoten];
-			int power = 127;
-
-			while(abs(err)>200 && time100(T2)<40) //adjust power of motors while error is outide of certain range, then set power to 0
-			{
-				err = desired - SensorValue[liftPoten];
-				//power = (int) (((-1*(0.00152+2/3500)*(err) + (2+3))*127/5);
-				power = (int) (err*127/4095*pAdjustment);
-				setLiftPower(power);
-				writeDebugStreamLine("Poten: %d, Power: %d, Error: %d", SensorValue[liftPoten], power,err);
-			}
-			setLiftPower(0);
-}
-
-//void driveStraight(int dest) //in encoder units
-//{
-//	SensorValue[leftQuad] = 0;
-//	SensorValue[rightQuad] = 0;
-//	int errRight = dest;
-//	int errLeft = dest;
-//	int powerRight;
-//	int powerLeft;
-
-//	while(abs(errRight)>20 || abs(errLeft)>20)
-//	{
-//		if(abs(errRight)>20)
-//		{
-//			errRight = SensorValue[rightQuad] - dest;
-//			powerRight = (int) (errRight*127/20*0.05);
-//			setRightMotors(powerRight);
-//		}
-//		else
-//		{
-//			bool timerStarted = false;
-//			if(!timerStarted)
-//			{
-//				clearTimer(T1);
-//				timerStarted = true;
-//			}
-//			setRightMotors(100);
-//			if(time100(T1)>10)
-//				setRightMotors(0);
-//		}
-
-//		if(abs(errLeft)>20)
-//		{
-//			errLeft = SensorValue[leftQuad] - dest;
-//			powerLeft = (int) (errLeft*127/20*0.99);
-//			setLeftMotors(powerLeft);
-//		}
-//		else
-//		{
-//			bool timerStarted2 = false;
-//			if(!timerStarted2)
-//			{
-//				clearTimer(T2);
-//				timerStarted2 = true;
-//			}
-//			setLeftMotors(-63);
-//			if(time100(T2)>1)
-//				setLeftMotors(0);
-//		}
-//			writeDebugStreamLine("ErrR: %d, PowerR: %d", errRight,powerRight);
-//			writeDebugStreamLine("ErrL: %d, PowerL: %d", errLeft,powerLeft);
-//	}
-//	//setAllDriveMotors(-63);
-//	//wait1Msec(100);
-//	setAllDriveMotors(0);
-//}
 
 void turnDeg(int angle)
 {
@@ -137,7 +68,7 @@ void turnDeg(int angle)
 	int power;
 	while(abs(err)>20)
 	{
-		err = adjustedAngle - SensorValue[rightQuad];
+		err = adjustedAngle - SensorValue[leftQuad];
 		power=-127;
 		writeDebugStreamLine("err: %d",err);
 		//power = err*127/ajustedAngle + 10;
@@ -150,14 +81,14 @@ void turnDeg(int angle)
 	setAllDriveMotors(0);
 }
 
-void driveStraightNew(int dest,float kp, float kbias)
+void driveStraight(int dest,float kp, float kbias)
 {
-	SensorValue[rightQuad] = 0;
+	SensorValue[leftQuad] = 0;
 	int err = dest;
 	int power = 127;
 	while(abs(err)>20)
 	{
-		err = dest + SensorValue[rightQuad];
+		err = dest - SensorValue[leftQuad];
 		//power = (int) (err*127.0/dest*kp + kbias);
 		power = 127*kp*sgn(err);
 		setAllDriveMotors(power);
@@ -168,17 +99,44 @@ void driveStraightNew(int dest,float kp, float kbias)
 
 void driveStraightAuton(int dest,float kp, float kbias)
 {
-	SensorValue[rightQuad] = 0;
+	SensorValue[leftQuad] = 0;
 	int err = dest;
-	float power = 127;
+	int power = 127;
 	while(abs(err)>20)
 	{
-		err = dest + SensorValue[rightQuad];
+		err = dest - SensorValue[leftQuad];
 		//power = (int) (err*127.0/dest*kp + kbias);
 		power = 127*kp*sgn(err);
-		setRightMotors((int) (power*0.65/0.55));
-		setLeftMotors((int) (power));
+		setRightMotors((int)(power*1.1));
+		setLeftMotors(power);
 		//writeDebugStreamLine("err: %d, power: %d, kp: %d, kbias: %d, power?:", err, power, kp, kbias, err*127/dest*kp);
 	}
 	setAllDriveMotors(0);
+}
+
+void actuallyDriveStraight(int time)
+{
+	clearTimer(T1);
+	SensorValue[rightQuad] = 0;
+	SensorValue[leftQuad]= 0;
+	int masterPower = 100;
+	setRightMotors(masterPower);
+	setLeftMotors(masterPower);
+	int err;
+	int adjustedPower;
+	int left;
+	int right;
+	while(time100(T1)<time*10)
+	{
+		int left = - SensorValue[leftQuad];
+		right = SensorValue[rightQuad];
+		err = SensorValue[leftQuad] - SensorValue[rightQuad];
+		adjustedPower = 0.3*err;
+		setRightMotors(masterPower + adjustedPower);
+
+		SensorValue[rightQuad] = 0;
+		SensorValue[leftQuad] = 0;
+
+		wait1Msec(50);
+	}
 }

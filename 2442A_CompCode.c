@@ -226,7 +226,7 @@ void turnV3(int degrees) {
 	while (fabs(pwr) > 5) {
 		dist = TARGET - SensorValue[in2];
 		pwr = (int) (dist * Kt);
-		setAllDriveMotors(pwr);
+		setRightDrivePower(pwr);
 		setLeftDrivePower(-pwr);
 	}
 	setAllDriveMotors(0);
@@ -317,7 +317,7 @@ task mainLiftUp() {
 
 void placeCone() {
 	int cone1 = 900;
-	int clearCone1 = 1400;
+	int clearCone1 = 1500;
 	placingCone = true;
 	while (SensorValue[mainLiftPot] > cone1 + POT_DZ)
 		mainLiftToPos(cone1);
@@ -325,6 +325,7 @@ void placeCone() {
 	wait1Msec(100);
 	motor[intake] = 0;
 	placingCone = false;
+	writeDebugStreamLine("Hello?");
 	while (SensorValue[mainLiftPot] < clearCone1 - POT_DZ)
 		mainLiftToPos(clearCone1);
 	setMainLiftPower(0);
@@ -653,7 +654,9 @@ void _5autonV2() {
 	pickUpCone();
 	driveAndPlaceCone1(-1500);
 	int mark2 = time1[T1];
-	turn(side * 180);
+	turnV3(side * 100);
+	drive(100);
+	turnV3(side * 100);
 	mblOut();
 	drive(-300);
 	writeDebugStreamLine("5 Zone Auton Time (msec): %d", time1[T1]);
@@ -781,28 +784,41 @@ void runPS20() {
 
 void runProgSkills() {
 	clearTimer(T2);
-	_20auton();
+	//_20auton();
 	// Target Score: 22
 	turnV3(80); // turn
-	drive(350); // drive forward
-	turnV3(90); // turn so back faces bar
-	drive(-200); // back up to straighten
-	drive(1000); // drive to next mbg
-	mblIn(); // pick up next mbg
-	turnV3(170); // turn to line up to score
-	drive(800); // drive toward scoring zone
-	mblOut(); // puts mbl out
+	drive(-800); // drive backward
+	turnV3(45);
+	drive(-400);
+	drive(450);
+	turnV3(30); // turn to face mbg
+	drive(400);
+	mblIn();
+	turn(120);
+	drive(800);
+	driveAndMBLOut(200);
+	while (goingOut) {}
 	// Target Score: 32
-	drive(-200); // back out
-	turnV3(180); // turn so back faces bar
-	drive(-500); // back up to straighten
-	drive(1500); // drive across field
-	driveAndMBLIn(500); // pick up next mbg
-	drive(300); // drive toward scoring zone
-	driveAndMBLOut(400, 500); // mbl out to score
-	// Target Score: 42
-	while (goingOut){} // wait for mbl to finish deploying
-	drive(-800); // back out
+	drive(-300);
+	turnV3(80); // turn
+	drive(-350); // drive backward
+	turnV3(45);
+	drive(-380); // drive
+	drive(450);
+	turnV3(30); // turn to face mbg
+	drive(350);
+	turnV3(45);
+	drive(600);
+	driveAndMBLIn(400);
+	turn(120);
+	drive(-100);
+	drive(100);
+	drive(45);
+	drive(700);
+	turn(90);
+	driveAndMBLOut(400, 500);
+	while(goingOut) {}
+	drive(-300);
 	writeDebugStreamLine("Prog. Skills: %d", time1[T2]/1000);
 }
 
@@ -876,9 +892,10 @@ task autonomous {
 	//loadFromJumpers();
 	//loadFromLCD();
 	//side = -1;
+	//_5autonV2();
 	//_10auton();
-	_20auton();
-	//runProgSkills();
+	//_20auton();
+	runProgSkills();
 }
 
 
@@ -902,7 +919,7 @@ task usercontrol {
 		if(fabs(leftJoy) > 15)
 			setLeftDrivePower(leftJoy);
 		else
-			setRightDrivePower(0);
+			setLeftDrivePower(0);
 		if(fabs(rightJoy) > 15)
 			setRightDrivePower(rightJoy);
 		else
@@ -959,7 +976,7 @@ task usercontrol {
 			//startTask(mblOutTask);
 			//mblIn();
 			//turn(1800);
-			//turnV3(180);
+			turnV3(180);
 			//drive(2000);
 		}
 

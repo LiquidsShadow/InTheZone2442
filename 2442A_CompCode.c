@@ -1,9 +1,9 @@
-#pragma config(Sensor, in1,    ml_pot,         sensorPotentiometer)
+#pragma config(Sensor, in1,    mainLiftPot,    sensorPotentiometer)
 #pragma config(Sensor, in2,    gyro,           sensorGyro)
-#pragma config(Sensor, dgtl1,  green_led,      sensorDigitalOut)
-#pragma config(Sensor, dgtl2,  red_led,        sensorDigitalOut)
-#pragma config(Sensor, dgtl9,  right_quad,     sensorQuadEncoder)
-#pragma config(Sensor, dgtl11, left_quad,      sensorQuadEncoder)
+#pragma config(Sensor, dgtl1,  greenLED,       sensorLEDtoVCC)
+#pragma config(Sensor, dgtl2,  redLED,         sensorLEDtoVCC)
+#pragma config(Sensor, dgtl9,  rightQuad,      sensorQuadEncoder)
+#pragma config(Sensor, dgtl11, leftQuad,       sensorQuadEncoder)
 #pragma config(Motor,  port1,           mainLiftRight, tmotorVex393_HBridge, openLoop)
 #pragma config(Motor,  port2,           intake,        tmotorVex393_MC29, openLoop)
 #pragma config(Motor,  port3,           drive_right_back, tmotorVex393_MC29, openLoop)
@@ -32,25 +32,11 @@ static const int RIGHT = 1;
 //static int auton_side = 0; // jumper settings: left 0 right 1
 //static int auton_5_10_zone = 0; // jumper settings: five 0 ten 1
 //static int auton_20_zone = 0; // jumper settings: (20) off 0 on 1
-static unsigned int ml_pos = 0; // potentiometer variable for use in tasks
 static unsigned int ml_wait_time = 0; // wait time for use in tasks
-static unsigned int chainbar_pos = 0; // potentiometer variable for use in tasks
 
 // gyro: http://www.robotc.net/blog/2011/10/13/programming-the-vex-gyro-in-robotc/
 // jumpers: https://renegaderobotics.org/vex-sensors-jumper-clips-led-indicators/
 // lcd: http://www.robotc.net/blog/2012/05/18/advanced-applications-with-the-vex-lcd/
-
-const unsigned int TAUi = 10; // time constant for PID
-
-static const float TURN_Kp = 0.5; // turn proportional gain
-static const float TURN_Ki = 0.5; // turn integral gain
-static const float TURN_Kd = 0.5; // turn derivative gain
-
-int turn_err = 0; // turn error
-int turn_reset = 0; // turn reset
-int turn_last_err = 0; // turn last error
-int turn_out = 0; // turn output
-int curr_gyro = 0; // current gyro value
 
 enum AutonScore {
 	FIVE, TEN, TWENTY
@@ -59,9 +45,12 @@ enum AutonScore {
 int side = -1;
 AutonScore score;
 
+// task state monitoring variables
 bool placingCone = false;
 bool goingOut = false;
 bool intakingMBL = false;
+
+// auton settings
 bool skipAuton = false;
 bool progSkills = false;
 const short BTN_LEFT = 1;
@@ -85,7 +74,7 @@ Sets the left drive to a power
 @param pwr
 integer value of new motor power
 */
-void set_left_drive_pwr(int pwr) {
+void setLeftDrivePower(int pwr) {
 	const float K = 1;
 	motor[drive_left_front] = K * pwr;
 	motor[drive_left_back] = K * pwr;
@@ -97,7 +86,7 @@ Sets the right drive to a power
 @param pwr
 integer value of new motor power
 */
-void set_right_drive_pwr(int pwr) {
+void setRightDrivePower(int pwr) {
 	motor[drive_right_front] = pwr;
 	motor[drive_right_back] = pwr;
 }
@@ -108,9 +97,9 @@ Sets the drive to a power
 @param pwr
 integer value of new motor power
 */
-void set_drive_pwr(int pwr) {
-	set_left_drive_pwr(pwr);
-	set_right_drive_pwr(pwr);
+void setAllDriveMotors(int pwr) {
+	setLeftDrivePower(pwr);
+	setRightDrivePower(pwr);
 }
 
 void setMainLiftPower(int pwr) {
@@ -124,7 +113,7 @@ Sets the mobile base lift to a power
 @param pwr
 integer value of new motor power
 */
-void set_mbl_pwr(int pwr) {
+void setMBLPower(int pwr) {
 	motor[mbl_left] = pwr;
 	motor[mbl_right] = pwr;
 }
@@ -137,30 +126,30 @@ integer value of encoder ticks to travel
 */
 void drive(int ticks) {
 //	const int K_TURN = 0.5;
-	const int K_LDRV = 0.8;
-	const int K_RDRV = 0.8;
+	const int K_LDRV = 2.0; // Left drive
+	const int K_RDRV = 2.0;	// Right drive
 	//const int START_GYRO = SensorValue[gyro];
-	SensorValue[left_quad] = 0;
-	SensorValue[right_quad] = 0;
+	SensorValue[leftQuad] = 0;
+	SensorValue[rightQuad] = 0;
 	//int turnErr = SensorValue[gyro] - START_GYRO;
-	int dist_left = ticks - SensorValue[left_quad];
-	int dist_right = ticks - SensorValue[right_quad];
-	int pwrL = (int) (dist_left * K_LDRV); // - K_TURN * turnErr);
-	int pwrR = (int) (dist_right * K_RDRV); // + K_TURN * turnErr);
-	while (fabs(dist_left) > 25 && fabs(dist_right) > 25)
+	int distLeft = ticks - SensorValue[leftQuad];
+	int distRight = ticks - SensorValue[rightQuad];
+	int pwrL = (int) (distLeft * K_LDRV); // - K_TURN * turnErr);
+	int pwrR = (int) (distRight * K_RDRV); // + K_TURN * turnErr);
+	while (fabs(distLeft) > 25 && fabs(distRight) > 25)
 	{
 		//turnErr = SensorValue[gyro] - START_GYRO;
-		dist_left = ticks - SensorValue[left_quad];
-		dist_right = ticks - SensorValue[right_quad];
-		pwrL = (int) (dist_left * 2.0);// - K_TURN * turnErr);
-		pwrR = (int) (dist_right * 2.0);  // + K_TURN * turnErr);
-		set_left_drive_pwr(pwrL);
-		set_right_drive_pwr(pwrR);
-		writeDebugStreamLine("Distance Left: %i", (int) (dist_left * K_LDRV));
-		writeDebugStreamLine("Distance Right: %i", (int) (dist_right * K_RDRV));
+		distLeft = ticks - SensorValue[leftQuad];
+		distRight = ticks - SensorValue[rightQuad];
+		pwrL = (int) (distLeft * K_LDRV);// - K_TURN * turnErr);
+		pwrR = (int) (distRight * K_RDRV);  // + K_TURN * turnErr);
+		setLeftDrivePower(pwrL);
+		setRightDrivePower(pwrR);
+		//writeDebugStreamLine("Power Left: %i", pwrL);
+		//writeDebugStreamLine("Power Right: %i", pwrR);
 		//writeDebugStreamLine("Turn: %i", (int) (K_TURN * turnErr));
 	}
-	set_drive_pwr(0);
+	setAllDriveMotors(0);
 }
 
 //*********************************DEPRECATED**********************************************
@@ -174,9 +163,9 @@ distance in encoder ticks
 - If ticks < 0 => left
 - If ticks > 0 => right
 */
-void turn2(int ticks) {
-	SensorValue[left_quad] = 0;
-	SensorValue[right_quad] = 0;
+void turnV2(int ticks) {
+	SensorValue[leftQuad] = 0;
+	SensorValue[rightQuad] = 0;
 	const float TURN_CONV = 0.95;
 	/*
 	While the robot has not reached its destination
@@ -186,21 +175,21 @@ void turn2(int ticks) {
 	int dist = 0;
 	while (fabs(dist) > 25) {
 		if (sgn(ticks) == -1) { // if turning left => update right motors
-			dist = ticks + SensorValue[left_quad];
-			set_left_drive_pwr((int) (dist * TURN_CONV));
-			set_right_drive_pwr((int) (-1 * dist * TURN_CONV));
+			dist = ticks + SensorValue[leftQuad];
+			setLeftDrivePower((int) (dist * TURN_CONV));
+			setRightDrivePower((int) (-1 * dist * TURN_CONV));
 			writeDebugStreamLine("Left drive motor power: %i", (int) (dist * TURN_CONV));
 			writeDebugStreamLine("Right drive motor power: %i", (int) (-1 * dist * TURN_CONV));
 		}
-		else { // if right_quad right => update left motors
-			dist = ticks + SensorValue[right_quad];
-			set_right_drive_pwr(dist * TURN_CONV);
-			set_left_drive_pwr(-1 * dist * TURN_CONV);
+		else { // if rightQuad right => update left motors
+			dist = ticks + SensorValue[rightQuad];
+			setRightDrivePower(dist * TURN_CONV);
+			setLeftDrivePower(-1 * dist * TURN_CONV);
 			writeDebugStreamLine("Left drive motor power: %i", (int) (-1 * dist * TURN_CONV));
 			writeDebugStreamLine("Right drive motor power: %i", (int) (dist * TURN_CONV));
 		}
 	}
-	set_drive_pwr(0); // clean
+	setAllDriveMotors(0); // clean
 }
 
 //*****************************************************************************************************
@@ -221,13 +210,13 @@ void turn(int degrees10) {
 		pwr = (int) (dist * Kt); // RECALIBRATE
 		//pwr = 127;
 		writeDebugStreamLine("%i", pwr);
-		set_right_drive_pwr(pwr);
-		set_left_drive_pwr(-pwr);
+		setRightDrivePower(pwr);
+		setLeftDrivePower(-pwr);
 	}
-	set_drive_pwr(0);
+	setMBLPower(0);
 }
 
-void turn3(int degrees) {
+void turnV3(int degrees) {
 	const int DEGREES10 = degrees * 10;
 	const float Kt = 0.25;
 	const int GYRO_START = SensorValue[in2];
@@ -237,10 +226,10 @@ void turn3(int degrees) {
 	while (fabs(pwr) > 5) {
 		dist = TARGET - SensorValue[in2];
 		pwr = (int) (dist * Kt);
-		set_right_drive_pwr(pwr);
-		set_left_drive_pwr(-pwr);
+		setAllDriveMotors(pwr);
+		setLeftDrivePower(-pwr);
 	}
-	set_drive_pwr(0);
+	setAllDriveMotors(0);
 }
 
 /**
@@ -249,9 +238,9 @@ Moves the lift proportionally to a potentiometer position
 @param pos
 potentiometer position
 */
-void ml_to_pos(int pos) {
+void mainLiftToPos(int pos) {
 	const float Kd = -0.6; // constant for going down
-	unsigned int curr = SensorValue[ml_pot];
+	unsigned int curr = SensorValue[mainLiftPot];
 	int dist = pos - curr;
 	float pwr = 0;
 	if (fabs(dist) > 20) {
@@ -259,170 +248,20 @@ void ml_to_pos(int pos) {
 	}
 	else
 		pwr = 0;
-	writeDebugStreamLine("power: %i", pwr);
+	//writeDebugStreamLine("power: %i", pwr);
 	setMainLiftPower((int) pwr);
-}
-
-/**
-Calculates the reset value for the integral control portion of PID control
-
-@param err
-PID error
-@param Ki
-PID integral gain
-
-@return
-integer value of reset
-*/
-int calc_reset_val(int err, int Ki) {
-	return Ki/TAUi * err;
-}
-
-/**
-Calculates the output value for PID control
-
-@param err
-PID error
-@param last_err
-PID last error
-@param reset
-PID reset value
-@param Kp
-PID proportional gain
-@param Kd
-PID derivative gain
-
-@return
-integer value of the output
-*/
-int calc_output_val(int err, int last_err, int reset, int Kp, int Kd) {
-	return Kp * err + reset + Kd/TAUi * (err - last_err);
-}
-
-/**
-PID Drive control that drives robot to a destination in encoder ticks
-Broken into 2 parts:
-PID to reach encoder destination
-PID to correct straight driving (using gyro)
-
-@param dest
-encoder value of drive destination
-*/
-void drive_PID(int dest)
-{
-	SensorValue[left_quad] = 0;
-	SensorValue[right_quad] = 0;
-
-	int start_gyro = SensorValue[gyro];
-
-	const float DEST_Kp = 0.5;
-	const float DEST_Ki = 0.5;
-	const float DEST_Kd = 0.5;
-
-	int dest_errL = 0;
-	int dest_errR = 0;
-	int dest_resetL = 0;
-	int dest_resetR = 0;
-	int dest_last_errL = 0;
-	int dest_last_errR = 0;
-	int dest_outL = 0;
-	int dest_outR = 0;
-
-	const float SIDE_TURN_CONST = -0.5;
-
-	int total_outL = 0;
-	int total_outR = 0;
-
-	while (fabs(total_outL) > 5 && fabs(total_outR) > 5)
-	{
-		dest_errL = dest - SensorValue[left_quad];
-		dest_errR = dest - SensorValue[right_quad];
-		dest_resetL = dest_resetL + calc_reset_val(dest_errL, DEST_Ki);
-		dest_resetR = dest_resetR + calc_reset_val(dest_errR, DEST_Ki);
-		dest_last_errL = dest_errL;
-		dest_last_errR = dest_errR;
-		dest_outL = calc_output_val(dest_errL, dest_last_errL, dest_resetL, DEST_Kp, DEST_Kd);
-		dest_outR = calc_output_val(dest_errR, dest_last_errR, dest_resetR, DEST_Kp, DEST_Kd);
-
-		curr_gyro = SensorValue[gyro];
-		turn_err = curr_gyro - start_gyro;
-		turn_reset = turn_reset + calc_reset_val(turn_err, TURN_Ki);
-		turn_last_err = turn_err;
-		turn_out = calc_output_val(turn_err, turn_last_err, turn_reset, TURN_Kp, TURN_Kd);
-
-		if (curr_gyro > start_gyro) {
-			total_outR = dest_outR + turn_out;
-			total_outL = dest_outL + SIDE_TURN_CONST * turn_out;
-		}
-		else {
-			total_outL = dest_outL + turn_out;
-			total_outR = dest_outR + SIDE_TURN_CONST * turn_out;
-		}
-
-		set_left_drive_pwr(total_outL);
-		set_right_drive_pwr(total_outR);
-		wait1Msec(TAUi);
-	}
-
-	set_drive_pwr(0);
-}
-
-/**
-PID turn control that turns robot to a gyroscope destination in tenths of a degree
-
-@param degrees10
-gyroscope destination in tenths of a degree
-*/
-void turn_PID(int degrees10) {
-	while (fabs(turn_out) > 5) {
-		turn_err = degrees10 - SensorValue[gyro];
-		turn_reset = turn_reset + calc_reset_val(turn_err, TURN_Ki);
-		turn_last_err = turn_err;
-		turn_out = calc_output_val(turn_err, turn_last_err, turn_reset, TURN_Kp, TURN_Kd);
-		set_right_drive_pwr(turn_out);
-		set_left_drive_pwr(-turn_out);
-		wait1Msec(TAUi);
-	}
-	set_drive_pwr(0);
-}
-
-/**
-PID main lift control that stops at a potentiometer position
-
-@param pos
-potentiometer value of destination
-*/
-void main_lift_PID(unsigned int pos) {
-	const float ML_Kp = 0.5;
-	const float ML_Ki = 0.5;
-	const float ML_Kd = 0.5;
-
-	int main_lift_err = 0;
-	int main_lift_reset = 0;
-	int main_lift_last_err = 0;
-	int main_lift_out = 0;
-
-	while (fabs(main_lift_out) > 5) {
-		main_lift_err = SensorValue[ml_pot];
-		main_lift_reset = main_lift_reset + calc_reset_val(main_lift_err, ML_Ki);
-		main_lift_last_err = main_lift_err;
-		main_lift_out = calc_output_val(main_lift_err, main_lift_last_err, main_lift_reset, ML_Kp, ML_Kd);
-		setMainLiftPower(main_lift_out);
-		wait1Msec(TAUi);
-	}
-	setMainLiftPower(0);
 }
 
 
 // moves mobile base lift out
 void mblOut(int time = MBL_OUT_TIME) {
-	set_mbl_pwr(-127);
+	setMBLPower(-127);
 	wait1Msec(time);
-	set_mbl_pwr(0);
+	setMBLPower(0);
 }
 
 // task for moving mobile base lift out
-task task_mbl_out {
+task mblOutTask {
 	goingOut = true;
 	mblOut();
 	goingOut = false;
@@ -430,64 +269,64 @@ task task_mbl_out {
 
 // moves mobile base lift in
 void mblIn() {
-	set_mbl_pwr(127);
+	setMBLPower(127);
 	wait1Msec(MBL_IN_TIME);
-	set_mbl_pwr(0);
-	writeDebugStreamLine("HELLLLLLLLLLLLLLO");
+	setMBLPower(0);
+	//writeDebugStreamLine("HELLLLLLLLLLLLLLO");
 }
 
 // task for moving mobile base lift in
-task task_mbl_in {
+task mblInTask {
 	intakingMBL = true;
 	mblIn();
 	intakingMBL = false;
 }
 
 /**
-method that combines task_mbl_out and driving some distance in encoder ticks
+method that combines mblOutTask and driving some distance in encoder ticks
 
 @param ticks
 integer value of encoder ticks to travel
 @param wait
 wait default to 0
 */
-void drive_and_mbl_out(int ticks, int wait = 0) {
-	startTask(task_mbl_out);
+void driveAndMBLOut(int ticks, int wait = 0) {
+	startTask(mblOutTask);
 	wait1Msec(wait);
 	drive(ticks);
 }
 
 /*
-method that combines task_mbl_in and driving some distances in encoder ticks
+method that combines mblInTask and driving some distances in encoder ticks
 
 @param ticks
 encoder ticks to drive
 */
-void drive_and_mbl_in(int ticks) {
-	startTask(task_mbl_in);
+void driveAndMBLIn(int ticks) {
+	startTask(mblInTask);
 	wait1Msec(MBL_IN_TIME/2);
 	drive(ticks);
 }
 
 // task for moving main lift up
-task ml_up() {
+task mainLiftUp() {
 	setMainLiftPower(-127);
 	wait1Msec(ml_wait_time);
 	setMainLiftPower(0);
 }
 
-void placeCone1() {
+void placeCone() {
 	int cone1 = 900;
 	int clearCone1 = 1400;
 	placingCone = true;
-	while (SensorValue[ml_pot] > cone1 + POT_DZ)
-		ml_to_pos(cone1);
+	while (SensorValue[mainLiftPot] > cone1 + POT_DZ)
+		mainLiftToPos(cone1);
 	motor[intake] = -127;
 	wait1Msec(100);
 	motor[intake] = 0;
 	placingCone = false;
-	while (SensorValue[ml_pot] < clearCone1 - POT_DZ)
-		ml_to_pos(clearCone1);
+	while (SensorValue[mainLiftPot] < clearCone1 - POT_DZ)
+		mainLiftToPos(clearCone1);
 	setMainLiftPower(0);
 }
 
@@ -511,34 +350,33 @@ task topLiftDownTask {
 	topLiftDown();
 }
 
-void pickUpCone2() {
+void pickUpCone() {
 	int cone2 = 950;
-	int clearCone2 = 1200;
+	int clearCone2 = 1300;
 	startTask(topLiftDownTask);
-	while (SensorValue[ml_pot] > cone2 + POT_DZ)
-		ml_to_pos(cone2);
+	while (SensorValue[mainLiftPot] > cone2 + POT_DZ)
+		mainLiftToPos(cone2);
 	motor[intake] = 127;
 	wait1Msec(500);
 	motor[intake] = 20;
 	startTask(topLiftUpTask);
-	while (SensorValue[ml_pot] < clearCone2 - POT_DZ)
-		ml_to_pos(clearCone2);
-	placeCone1();
+	while (SensorValue[mainLiftPot] < clearCone2 - POT_DZ)
+		mainLiftToPos(clearCone2);
 }
 
 task placeCone1Task() {
-	placeCone1();
+	placeCone();
 }
 
 void driveAndPlaceCone1(int ticks, int wait=0) {
 	startTask(placeCone1Task);
-	while (placingCone) {}
+	//while (placingCone) {}
 	wait1Msec(100);
 	drive(ticks);
 }
 
 // task for placing cone: lowers lift down and then releases cone and raises lift up
-task placeCone() {
+task placeConeByTime {
 	setMainLiftPower(127);
 	wait1Msec(ml_wait_time);
 	setMainLiftPower(0);
@@ -551,16 +389,16 @@ task placeCone() {
 }
 
 /**
-method that combines ml_up and driving some distance in encoder ticks
+method that combines mainLiftUp and driving some distance in encoder ticks
 
 @param ticks
 integer value of encoder ticks to travel
 @param n
 value passed to global variable used in main lift task
 */
-void drive_and_raise_ml(int ticks, int n) {
+void driveAndRaiseMainLift(int ticks, int n) {
 	ml_wait_time = n;
-	startTask(ml_up);
+	startTask(mainLiftUp);
 	drive(ticks);
 }
 
@@ -574,7 +412,7 @@ wait time n
 */
 void driveAndPlaceCone(int ticks, int n) {
 	ml_wait_time = n;
-	startTask(placeCone);
+	startTask(placeConeByTime);
 	drive(ticks);
 }
 
@@ -726,7 +564,6 @@ int lcdUI2() {
 }
 
 void setUpAuton() {
-	writeDebugStreamLine("Reading Autonomous Settings.. ");
 	int choice = lcdUI2();
 	skipAuton = choice == 0;
 	progSkills = choice == SELECTIONS - 1;
@@ -769,44 +606,80 @@ void loadFromJumpers() {
 
 // ******************************************************************************************************
 
+task autonTestTask {
+	clearTimer(T3);
+	writeDebugStreamLine("--AUTON TIMER STARTED--");
+	while (time1[T3] < 15001) { }
+	setAllDriveMotors(0);
+	setMBLPower(0);
+	setMainLiftPower(0);
+	motor[topLift] = 0;
+	motor[intake] = 0;
+	writeDebugStreamLine("--AUTON STOPPED--");
+}
+
 
 // runs 5 point autonomous; scores in corner (target 5 point zone)
 void _5auton() {
 	displayLCDCenteredString(0, "Running 5 pt.");
 	clearTimer(T1);
 	motor[intake] = 40;
-	startTask(task_mbl_out);
-	drive_and_raise_ml(1400, 500);
-	stopTask(task_mbl_out);
-	drive_and_mbl_in(200);
+	startTask(mblOutTask);
+	driveAndRaiseMainLift(1400, 500);
+	stopTask(mblOutTask);
+	driveAndMBLIn(200);
 	while (intakingMBL) {}
-	placeCone1();
-	pickUpCone2();
+	placeCone();
+	pickUpCone();
 	drive(-1300);
 	//turn(side * 2000);
-	turn3(side * 200);
+	turnV3(side * 200);
 	mblOut(MBL_OUT_TIME_HOLDING);
 	drive(-1500);
 	writeDebugStreamLine("5 Zone Auton Time (msec): %d", time1[T1]);
 }
 
+void _5autonV2() {
+	displayLCDCenteredString(0, "Running 5 pt.");
+	clearTimer(T1);
+	motor[intake] = 40;
+	startTask(mblOutTask);
+	driveAndRaiseMainLift(1500, 500);
+	while (goingOut) {}
+	driveAndMBLIn(100);
+	while (intakingMBL) {}
+	placeCone();
+	int mark1 = time1[T1];
+	pickUpCone();
+	driveAndPlaceCone1(-1500);
+	int mark2 = time1[T1];
+	turn(side * 180);
+	mblOut();
+	drive(-300);
+	writeDebugStreamLine("5 Zone Auton Time (msec): %d", time1[T1]);
+	writeDebugStreamLine("Cone stacking time: %d", mark2-mark1);
+}
+
 void _10auton() {
+	//startTask(autonTestTask);
 	displayLCDCenteredString(0, "Running 10 pt.");
 	clearTimer(T1);
 	motor[intake] = 40;
-	startTask(task_mbl_out);
-	drive_and_raise_ml(1500, 500);
+	startTask(mblOutTask);
+	driveAndRaiseMainLift(1500, 500);
 	while (goingOut) {}
-	drive_and_mbl_in(200);
+	driveAndMBLIn(100);
 	while (intakingMBL) {}
-	placeCone1();
+	placeCone();
 	int mark1 = time1[T1];
-	pickUpCone2();
+	pickUpCone();
+	driveAndPlaceCone1(-1500);
 	int mark2 = time1[T1];
-	drive(-1500);
 	//turn(side * 2100);
-	turn3(side * 210);
-	drive_and_mbl_out(300, 500);
+	turnV3(side * 110);
+	drive(100);
+	turnV3(side * 100);
+	driveAndMBLOut(400, 500);
 	while(goingOut) {}
 	drive(-300);
 	writeDebugStreamLine("10 Zone Auton Time (msec): %d", time1[T1]);
@@ -814,13 +687,13 @@ void _10auton() {
 }
 
 // runs 10 point autonomous scores in corner (target 10 point zone)
-void _10auton2() {
+void _20autonV2() {
 	displayLCDCenteredString(0, "Running 10 pt.");
 	clearTimer(T1);
 	motor[intake] = 40;
-	startTask(task_mbl_out);
-	drive_and_raise_ml(1600, 500);
-	drive_and_mbl_in(-400);
+	startTask(mblOutTask);
+	driveAndRaiseMainLift(1600, 500);
+	driveAndMBLIn(-400);
 	driveAndPlaceCone(-900, 1000);
 	turn(side * 1800);
 	drive(300);
@@ -834,35 +707,35 @@ void _10auton2() {
 void _20auton() {
 	displayLCDCenteredString(0, "Running 20 pt.");
 	clearTimer(T1);
-	//set_left_drive_pwr(100);
+	//setLeftDrivePower(100);
 	//wait1Msec(100);
-	//set_left_drive_pwr(0);
+	//setLeftDrivePower(0);
 	motor[intake] = 40;
-	startTask(task_mbl_out);
-	drive_and_raise_ml(1500, 500);
-	//drive_and_mbl_in(200);
+	startTask(mblOutTask);
+	driveAndRaiseMainLift(1500, 500);
+	//driveAndMBLIn(200);
 	//while (intakingMBL) {}
 	while (goingOut) {}
 	mblIn();
 	driveAndPlaceCone1(-1300);
-	turn3(side * 130);
+	turnV3(side * 130);
 	drive(500);
-	turn3(side * 90);
+	turnV3(side * 90);
 	drive(500);
-	drive_and_mbl_out(500, 500);
+	driveAndMBLOut(500, 500);
 	while(goingOut) {}
 	drive(-500);
 	writeDebugStreamLine("20 Zone Auton Time (msec): %d", time1[T1]);
 }
 
 // runs 20 point autonomous; scores in middle (target 20 point zone)
-void _20auton2() {
+void _20autonV2() {
 	displayLCDCenteredString(0, "Running 20 pt.");
 	clearTimer(T1);
 	motor[intake] = 40;
-	startTask(task_mbl_out);
-	drive_and_raise_ml(1600, 500);
-	drive_and_mbl_in(20);
+	startTask(mblOutTask);
+	driveAndRaiseMainLift(1600, 500);
+	driveAndMBLIn(20);
 	driveAndPlaceCone(-1000, 1000);
 	turn(side * 1800);
 	drive(750);
@@ -881,26 +754,26 @@ void runPS20() {
 	drive(400);
 	turn(-700);
 	drive(1000);
-	drive_and_mbl_in(-1300);
+	driveAndMBLIn(-1300);
 	turn(1600);
 	drive(100);
 	mblOut();
 	drive(-1000);
 	turn(800);
 	drive(800);
-	drive_and_mbl_in(200);
+	driveAndMBLIn(200);
 	turn(1800);
 	drive(1500);
 	mblOut();
-	set_mbl_pwr(-127);
+	setMBLPower(-127);
 	wait1Msec(250);
-	set_mbl_pwr(0);
+	setMBLPower(0);
 	drive(-500);
 	turn(900);
 	drive(100);
 	turn(-200);
 	drive(1700);
-	drive_and_mbl_in(1400);
+	driveAndMBLIn(1400);
 	mblOut();
 	drive(-500);
 	writeDebugStreamLine("Programming Skills start with 20 point auton time: ", time1[T1]);
@@ -910,23 +783,23 @@ void runProgSkills() {
 	clearTimer(T2);
 	_20auton();
 	// Target Score: 22
-	turn3(80); // turn
+	turnV3(80); // turn
 	drive(350); // drive forward
-	turn3(90); // turn so back faces bar
+	turnV3(90); // turn so back faces bar
 	drive(-200); // back up to straighten
 	drive(1000); // drive to next mbg
 	mblIn(); // pick up next mbg
-	turn3(170); // turn to line up to score
+	turnV3(170); // turn to line up to score
 	drive(800); // drive toward scoring zone
 	mblOut(); // puts mbl out
 	// Target Score: 32
 	drive(-200); // back out
-	turn3(180); // turn so back faces bar
+	turnV3(180); // turn so back faces bar
 	drive(-500); // back up to straighten
 	drive(1500); // drive across field
-	drive_and_mbl_in(500); // pick up next mbg
+	driveAndMBLIn(500); // pick up next mbg
 	drive(300); // drive toward scoring zone
-	drive_and_mbl_out(400, 500); // mbl out to score
+	driveAndMBLOut(400, 500); // mbl out to score
 	// Target Score: 42
 	while (goingOut){} // wait for mbl to finish deploying
 	drive(-800); // back out
@@ -938,15 +811,16 @@ void loadFromLCD() {
 		if (!progSkills) {
 			switch (score) {
 			case FIVE :
-				writeDebugStreamLine("5 point");
-				_5auton();
+				writeDebugStreamLine("5 Point Zone Auton Initiated; Side: %i", side);
+				//_5auton();
+				_5autonV2();
 				break;
 			case TEN :
-				writeDebugStreamLine("10 Zone Auton Initiated.. ");
+				writeDebugStreamLine("10 Point Zone Auton Initiated; Side: %i", side);
 				_10auton();
 				break;
 			case TWENTY :
-				writeDebugStreamLine("20 Zone Auton Initiated.. ");
+				writeDebugStreamLine("20 Point Zone Auton Initiated; Side: %i", side);
 				_20auton();
 				break;
 			default :
@@ -954,7 +828,9 @@ void loadFromLCD() {
 			}
 		}
 		else {
-			runPS20();
+			writeDebugStreamLine("Programming Skills Initiated; Side: %i", side);
+			runProgSkills();
+			//runPS20();
 		}
 	}
 }
@@ -965,6 +841,9 @@ void pre_auton() {
 	clearLCDLine(0);
 	clearLCDLine(1);
 	bLCDBacklight = true;
+	writeDebugStreamLine("Turning off LEDs.. ");
+	SensorValue[redLED] = 0;
+	SensorValue[greenLED] = 0;
 	/*
 	if (SensorValue(dgtl4) == 1)
 	auton_side = -1;
@@ -973,14 +852,14 @@ void pre_auton() {
 	auton_5_10_zone = SensorValue(dgtl5);
 	auton_20_zone = SensorValue(dgtl6);
 	*/
+	writeDebugStreamLine("Reading Autonomous Settings.. ");
+	SensorValue[greenLED] = 1;
 	//setUpAuton();
-	writeDebugStreamLine("Turning off LEDs.. ");
-	SensorValue[green_led] = 1;
-	SensorValue[red_led] = 1;
+	SensorValue[greenLED] = 0;
 	writeDebugStreamLine("Initiated Gyro Calibration.. ");
 	displayLCDCenteredString(0, "Gyro is");
 	displayLCDCenteredString(1, "calibrating");
-	SensorValue[red_led] = 0;
+	SensorValue[redLED] = 1;
 	SensorType[in2] = sensorNone;
 	wait1Msec(1000);
 	SensorType[in2] = sensorGyro;
@@ -989,16 +868,17 @@ void pre_auton() {
 	writeDebugStreamLine("Completed Gyro Calibration.. ");
 	displayLCDCenteredString(0, "Calibration");
 	displayLCDCenteredString(1, "complete.");
-	SensorValue[red_led] = 1;
+	SensorValue[redLED] = 0;
 }
 
 // autonomous based on jumper settings that have been passed on to global variables in pre_auton()
 task autonomous {
 	//loadFromJumpers();
 	//loadFromLCD();
+	//side = -1;
 	//_10auton();
-	//_20auton();
-	runProgSkills();
+	_20auton();
+	//runProgSkills();
 }
 
 
@@ -1009,7 +889,7 @@ task usercontrol {
 	while(true) {
 		int joy_right = vexRT[Ch2];
 		int joy_left = vexRT[Ch3];
-		word ml_up = vexRT[Btn6U];
+		word mainLiftUp = vexRT[Btn6U];
 		word ml_down = vexRT[Btn6D];
 		word topLiftUp = vexRT[Btn5U];
 		word topLiftDown = vexRT[Btn5D];
@@ -1020,27 +900,27 @@ task usercontrol {
 		word intake_out = vexRT[Btn8L];
 
 		if(fabs(joy_left) > 15)
-			set_left_drive_pwr(joy_left);
+			setLeftDrivePower(joy_left);
 		else
-			set_left_drive_pwr(0);
+			setRightDrivePower(0);
 		if(fabs(joy_right) > 15)
-			set_right_drive_pwr(joy_right);
+			setRightDrivePower(joy_right);
 		else
-			set_right_drive_pwr(0);
+			setRightDrivePower(0);
 
 		if(mbl_in == 1)
-			set_mbl_pwr(-127);
+			setMBLPower(-127);
 		else if(mbl_out == 1)
-			set_mbl_pwr(127);
+			setMBLPower(127);
 		else
-			set_mbl_pwr(0);
+			setMBLPower(0);
 
-		if(ml_up == 1)
+		if(mainLiftUp == 1)
 			//setMainLiftPower(-127);
-			ml_to_pos(2100);
+			mainLiftToPos(2100);
 		else if(ml_down == 1)
 			//setMainLiftPower(127);
-			ml_to_pos(0);
+			mainLiftToPos(0);
 		else
 			setMainLiftPower(0);
 
@@ -1070,17 +950,17 @@ task usercontrol {
 		if (test_auton_1 == 1) {
 			//driveAndPlaceCone(1400, 1000);
 			//turn(2700);
-			//drive_and_mbl_in(400);
+			//driveAndMBLIn(400);
 				//motor[intake] = 40;
-			//placeCone1();
-			//pickUpCone2();
+			//placeCone();
+			//pickUpCone();
 			//turn(1800);
 			//mblOut();
-			//startTask(task_mbl_out);
+			//startTask(mblOutTask);
 			//mblIn();
 			//turn(1800);
-			//turn3(180);
-			drive(2000);
+			//turnV3(180);
+			//drive(2000);
 		}
 
 

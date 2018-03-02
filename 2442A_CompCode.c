@@ -2,6 +2,7 @@
 #pragma config(Sensor, in2,    gyro,           sensorGyro)
 #pragma config(Sensor, dgtl1,  greenLED,       sensorLEDtoVCC)
 #pragma config(Sensor, dgtl2,  redLED,         sensorLEDtoVCC)
+#pragma config(Sensor, dgtl3,  driverSkillsJumper, sensorDigitalIn)
 #pragma config(Sensor, dgtl9,  rightQuad,      sensorQuadEncoder)
 #pragma config(Sensor, dgtl11, leftQuad,       sensorQuadEncoder)
 #pragma config(Motor,  port1,           mainLiftRight, tmotorVex393_HBridge, openLoop)
@@ -349,12 +350,13 @@ void placeCone() {
 		mainLiftToPos(cone1);
 	motor[intake] = -127;
 	wait1Msec(100);
-	motor[intake] = 0;
+	motor[intake] = -40;
 	placingCone = false;
 	writeDebugStreamLine("Hello?");
 	while (SensorValue[mainLiftPot] < clearCone1 - POT_DZ)
 		mainLiftToPos(clearCone1);
 	setMainLiftPower(0);
+	motor[intake] = 0;
 }
 
 void topLiftUp() {
@@ -513,6 +515,7 @@ bool rightPressed() {
 }
 
 // *******************************************DEPRECATED*****************************************************
+
 
 int lcdUI() {
 	clearLCDLine(0);
@@ -715,6 +718,29 @@ void _10auton() {
 	writeDebugStreamLine("Cone stacking time: %d", mark2-mark1);
 }
 
+void _20auton() {
+	displayLCDCenteredString(0, "Running 20 pt.");
+	clearTimer(T1);
+	//setLeftDrivePower(100);
+	//wait1Msec(100);
+	//setLeftDrivePower(0);
+	motor[intake] = 40;
+	startTask(mblOutTask);
+	driveAndRaiseMainLift(1500, 500);
+	//driveAndMBLIn(200);
+	//while (intakingMBL) {}
+	while (goingOut) {}
+	mblIn();
+	driveAndPlaceCone1(-1400);
+	turnV3(side * 130);
+	drive(500);
+	turnV3(side * 90);
+	drive(300);
+	driveAndMBLOut(500, 500);
+	while(goingOut) {}
+	drive(-500);
+	writeDebugStreamLine("20 Zone Auton Time (msec): %d", time1[T1]);
+}
 // runs 10 point autonomous scores in corner (target 10 point zone)
 void _20autonV2() {
 	displayLCDCenteredString(0, "Running 10 pt.");
@@ -732,33 +758,8 @@ void _20autonV2() {
 	drive(-2000);
 	writeDebugStreamLine("10 Zone Auton Time (msec): %d", time1[T1]);
 }
-
-void _20auton() {
-	displayLCDCenteredString(0, "Running 20 pt.");
-	clearTimer(T1);
-	//setLeftDrivePower(100);
-	//wait1Msec(100);
-	//setLeftDrivePower(0);
-	motor[intake] = 40;
-	startTask(mblOutTask);
-	driveAndRaiseMainLift(1500, 500);
-	//driveAndMBLIn(200);
-	//while (intakingMBL) {}
-	while (goingOut) {}
-	mblIn();
-	driveAndPlaceCone1(-1300);
-	turnV3(side * 130);
-	drive(500);
-	turnV3(side * 90);
-	drive(500);
-	driveAndMBLOut(500, 500);
-	while(goingOut) {}
-	drive(-500);
-	writeDebugStreamLine("20 Zone Auton Time (msec): %d", time1[T1]);
-}
-
 // runs 20 point autonomous; scores in middle (target 20 point zone)
-void _20autonV2() {
+void _20autonV3() {
 	displayLCDCenteredString(0, "Running 20 pt.");
 	clearTimer(T1);
 	motor[intake] = 40;
@@ -817,27 +818,21 @@ void runProgSkills() {
 	turnV3(45); // turn to line approx. up with wall
 	drive(-425, 1500); // back up to wall (attempt to align)
 	drive(450); // drive away from wall
-	turnV3(30); // turn to face mbg
-	drive(550); // drive to mbg
+	turnV3(40); // turn to face mbg
+	drive(600); // drive to mbg
 	mblIn(); // pick up mbg
-	turnV3(160); // turn to score
+	turnV3(190); // turn to score
 	drive(900); // drive forward to bar
 	driveAndMBLOut(200); // score
 	while (goingOut) {}
 	// Target Score: 32
-	//drive(-300);
-	//turnV3(60); // turn
-	//drive(-475); // drive backward
-	//turnV3(45);
-	//drive(-500, 1500);// drive backward
-	//drive(450);
-	//turnV3(40); // turn to face mbg
-	drive(-200); // clear
-	turnV3(180); // turn to face next mbg
-	// drive back slowly to line up with bar
-	setAllDriveMotors(-40);
-	wait1Msec(500);
-	setAllDriveMotors(0);
+	drive(-300);
+	turnV3(90); // turn
+	drive(-475); // drive backward
+	turnV3(45);
+	drive(-500, 1000);// drive backward
+	drive(450);
+	turnV3(40); // turn to face mbg
 	drive(1800); // drive across to next mbg
 	mblIn(); // pick up next mbg
 	while (intakingMBL) {}
@@ -847,12 +842,15 @@ void runProgSkills() {
 	//turnV3(45);
 	//drive(500);
 	//turnV3(90);
-	drive(600); // drive to scoring zone
-	turnV3(90); // turn to line up with 20 point zone
-	driveAndMBLOut(500, 500); // score mbg
+	drive(750); // drive to scoring zone
+	turnV3(-90); // turn to be inline with bar
+	drive(500); // drive forward
+	turnV3(90); // turn to line up with goal
+	drive(500); // drive toward goal
+	driveAndMBLOut(400, 700); // score mbg
 	while(goingOut) {}
-	drive(-300); //  back out
-	turn(45); // turn to line up with parking zone
+	drive(-300, 1500); //  back out
+	turnV3(45); // turn to line up with parking zone
 	drive(-2000); // drive to parking spot
 	writeDebugStreamLine("Prog. Skills: %d", time1[T1]/1000);
 }
@@ -929,8 +927,8 @@ task autonomous {
 	//side = -1;
 	//_5autonV2();
 	//_10auton();
-	//_20auton();
-	runProgSkills();
+	_20auton();
+	//runProgSkills();
 }
 
 
@@ -938,6 +936,7 @@ task autonomous {
 task usercontrol {
 	startTask(displayBatLvl);
 	bool runIntake = false;
+	bool doingDriverSkills = SensorValue[driverSkillsJumper] == 0;
 	while(true) {
 		int rightJoy = vexRT[Ch2];
 		int leftJoy = vexRT[Ch3];
@@ -946,6 +945,7 @@ task usercontrol {
 		word leftTriggerUp = vexRT[Btn5U]; // top lift up
 		word leftTriggerDown = vexRT[Btn5D]; // top lift down
 		word leftPadUp = vexRT[Btn7U]; // test auton
+		word leftPadDown = vexRT[Btn7D]; // automated stacking
 		word rightPadUp = vexRT[Btn8U]; // mbl out
 		word rightPadDown = vexRT[Btn8D]; // mbl in
 		word rightPadRight = vexRT[Btn8R]; // intake in
@@ -960,44 +960,57 @@ task usercontrol {
 		else
 			setRightDrivePower(0);
 
-		if(rightPadDown == 1)
-			setMBLPower(-127);
-		else if(rightPadUp == 1)
-			setMBLPower(127);
-		else
-			setMBLPower(0);
+		if (doingDriverSkills) {
+			if (leftTriggerUp == 1)
+				setMBLPower(127);
+			else if (leftTriggerDown == 1)
+				setMBLPower(-127);
+			else
+				setMBLPower(0);
+		}
+		else {
+			if(rightPadDown == 1)
+				setMBLPower(-127);
+			else if(rightPadUp == 1)
+				setMBLPower(127);
+			else
+				setMBLPower(0);
+		}
 
 		if(rightTriggerUp == 1)
-			//setMainLiftPower(-127);
-		mainLiftToPos(2100);
+			mainLiftToPos(2100);
+		//setMainLiftPower(-127);
 		else if(rightTriggerDown == 1)
-			//setMainLiftPower(127);
-		mainLiftToPos(0);
+			mainLiftToPos(0);
+		//setMainLiftPower(127);
 		else
 			setMainLiftPower(0);
 
-		if (leftTriggerUp == 1)
-			motor[topLift] = -100;
-		else if (leftTriggerDown == 1)
-			motor[topLift] = 127;
-		else
-			motor[topLift] = 0;
-
-		if(rightPadRight == 1) {
-			motor[intake] = 127;
-			runIntake = true;
-		}
-		else if(rightPadLeft == 1) {
-			motor[intake] = -127;
-			runIntake = false;
-		}
-		else {
-			if (runIntake)
-				motor[intake] = 20;
+		if (!doingDriverSkills) {
+			if (leftTriggerUp == 1)
+				motor[topLift] = -100;
+			else if (leftTriggerDown == 1)
+				motor[topLift] = 127;
 			else
-				motor[intake] = 0;
+				motor[topLift] = 0;
 		}
 
+		if (!doingDriverSkills) {
+			if(rightPadRight == 1) {
+				motor[intake] = 127;
+				runIntake = true;
+			}
+			else if(rightPadLeft == 1) {
+				motor[intake] = -127;
+				runIntake = false;
+			}
+			else {
+				if (runIntake)
+					motor[intake] = 20;
+				else
+					motor[intake] = 0;
+			}
+		}
 
 		if (leftPadUp == 1) {
 			//driveAndPlaceCone(1400, 1000);
@@ -1011,9 +1024,16 @@ task usercontrol {
 			//startTask(mblOutTask);
 			//mblIn();
 			//turn(1800);
-			turnV3(180, true);
+			//turnV3(180, true);
 			//drive(2000);
 		}
+
+		if (leftPadDown == 1) {
+			if (doingDriverSkills) {
+				placeCone();
+			}
+		}
+
 
 
 	}

@@ -49,7 +49,8 @@ AutonScore score;
 bool placingCone = false;
 bool goingOut = false;
 bool intakingMBL = false;
-
+bool encodersStuck = false;
+int monitoringTime = 0;
 // auton settings
 bool skipAuton = false;
 bool progSkills = false;
@@ -102,6 +103,16 @@ void setAllDriveMotors(int pwr) {
 	setRightDrivePower(pwr);
 }
 
+void slewCtrlDrive(int power) {
+	int current = 0;
+	while (current < power) {
+		current += sgn(power) * 20;
+		if (current > power)
+			current = power;
+		setAllDriveMotors(power);
+	}
+}
+
 void setMainLiftPower(int pwr) {
 	motor[mainLiftRight] = pwr;
 	motor[mainLiftLeft] = pwr;
@@ -124,8 +135,9 @@ Drives a distance and proportionally decreases motor power
 @param ticks
 integer value of encoder ticks to travel
 */
-void drive(int ticks) {
-//	const int K_TURN = 0.5;
+void drive(int ticks, int timeStopMS = 100000, bool startSlewed = false) {
+	clearTimer(T4);
+	//	const int K_TURN = 0.5;
 	const int K_LDRV = 2.0; // Left drive
 	const int K_RDRV = 2.0;	// Right drive
 	//const int START_GYRO = SensorValue[gyro];
@@ -136,8 +148,9 @@ void drive(int ticks) {
 	int distRight = ticks - SensorValue[rightQuad];
 	int pwrL = (int) (distLeft * K_LDRV); // - K_TURN * turnErr);
 	int pwrR = (int) (distRight * K_RDRV); // + K_TURN * turnErr);
-	while (fabs(distLeft) > 25 && fabs(distRight) > 25)
-	{
+	if (startSlewed)
+		slewCtrlDrive(sgn(ticks) * 127);
+	while (fabs(distLeft) > 25 && fabs(distRight) > 25 && time1[T4] < timeStopMS) {
 		//turnErr = SensorValue[gyro] - START_GYRO;
 		distLeft = ticks - SensorValue[leftQuad];
 		distRight = ticks - SensorValue[rightQuad];
@@ -216,20 +229,33 @@ void turn(int degrees10) {
 	setMBLPower(0);
 }
 
-void turnV3(int degrees) {
+void turnV3(int degrees, int timeStopMS = 100000, bool doCorrection = false) {
+	clearTimer(T4);
 	const int DEGREES10 = degrees * 10;
 	const float Kt = 0.25;
 	const int GYRO_START = SensorValue[in2];
 	const int TARGET = (fabs(GYRO_START + DEGREES10) > 3600) ? (sgn(degrees) * (fabs(GYRO_START + DEGREES10) - 3600)) : (GYRO_START + DEGREES10);
 	int dist = TARGET - SensorValue[in2];
 	int pwr = (int) (dist * Kt);
-	while (fabs(pwr) > 5) {
+	while (fabs(pwr) > 5 && time1[T4] < timeStopMS) {
 		dist = TARGET - SensorValue[in2];
 		pwr = (int) (dist * Kt);
 		setRightDrivePower(pwr);
 		setLeftDrivePower(-pwr);
 	}
 	setAllDriveMotors(0);
+	if (doCorrection) {
+		writeDebugStreamLine("Attempting Correction");
+		int dist = degrees - SensorValue[gyro];
+		while (fabs(dist) > 10) {
+			dist = degrees - SensorValue[gyro];
+			setRightDrivePower(sgn(dist) * 30);
+			setLeftDrivePower(-sgn(dist) * 30);
+			writeDebugStreamLine("Right Drive: %i", sgn(dist) * 30);
+			writeDebugStreamLine("Left power %i", -sgn(dist) * 30);
+		}
+		setAllDriveMotors(0);
+	}
 }
 
 /**
@@ -783,43 +809,52 @@ void runPS20() {
 }
 
 void runProgSkills() {
-	clearTimer(T2);
-	//_20auton();
+	clearTimer(T1);
+	_20auton();
 	// Target Score: 22
 	turnV3(80); // turn
-	drive(-800); // drive backward
-	turnV3(45);
-	drive(-400);
-	drive(450);
+	drive(-775); // drive backward
+	turnV3(45); // turn to line approx. up with wall
+	drive(-425, 1500); // back up to wall (attempt to align)
+	drive(450); // drive away from wall
 	turnV3(30); // turn to face mbg
-	drive(400);
-	mblIn();
-	turn(120);
-	drive(800);
-	driveAndMBLOut(200);
+	drive(550); // drive to mbg
+	mblIn(); // pick up mbg
+	turnV3(160); // turn to score
+	drive(900); // drive forward to bar
+	driveAndMBLOut(200); // score
 	while (goingOut) {}
 	// Target Score: 32
-	drive(-300);
-	turnV3(80); // turn
-	drive(-350); // drive backward
-	turnV3(45);
-	drive(-380); // drive
-	drive(450);
-	turnV3(30); // turn to face mbg
-	drive(350);
-	turnV3(45);
-	drive(600);
-	driveAndMBLIn(400);
-	turn(120);
-	drive(-100);
-	drive(100);
-	drive(45);
-	drive(700);
-	turn(90);
-	driveAndMBLOut(400, 500);
+	//drive(-300);
+	//turnV3(60); // turn
+	//drive(-475); // drive backward
+	//turnV3(45);
+	//drive(-500, 1500);// drive backward
+	//drive(450);
+	//turnV3(40); // turn to face mbg
+	drive(-200); // clear
+	turnV3(180); // turn to face next mbg
+	// drive back slowly to line up with bar
+	setAllDriveMotors(-40);
+	wait1Msec(500);
+	setAllDriveMotors(0);
+	drive(1800); // drive across to next mbg
+	mblIn(); // pick up next mbg
+	while (intakingMBL) {}
+	//turnV3(-140);
+	//drive(-800);
+	//drive(50);
+	//turnV3(45);
+	//drive(500);
+	//turnV3(90);
+	drive(600); // drive to scoring zone
+	turnV3(90); // turn to line up with 20 point zone
+	driveAndMBLOut(500, 500); // score mbg
 	while(goingOut) {}
-	drive(-300);
-	writeDebugStreamLine("Prog. Skills: %d", time1[T2]/1000);
+	drive(-300); //  back out
+	turn(45); // turn to line up with parking zone
+	drive(-2000); // drive to parking spot
+	writeDebugStreamLine("Prog. Skills: %d", time1[T1]/1000);
 }
 
 void loadFromLCD() {
@@ -934,10 +969,10 @@ task usercontrol {
 
 		if(rightTriggerUp == 1)
 			//setMainLiftPower(-127);
-			mainLiftToPos(2100);
+		mainLiftToPos(2100);
 		else if(rightTriggerDown == 1)
 			//setMainLiftPower(127);
-			mainLiftToPos(0);
+		mainLiftToPos(0);
 		else
 			setMainLiftPower(0);
 
@@ -968,7 +1003,7 @@ task usercontrol {
 			//driveAndPlaceCone(1400, 1000);
 			//turn(2700);
 			//driveAndMBLIn(400);
-				//motor[intake] = 40;
+			//motor[intake] = 40;
 			//placeCone();
 			//pickUpCone();
 			//turn(1800);
@@ -976,7 +1011,7 @@ task usercontrol {
 			//startTask(mblOutTask);
 			//mblIn();
 			//turn(1800);
-			turnV3(180);
+			turnV3(180, true);
 			//drive(2000);
 		}
 

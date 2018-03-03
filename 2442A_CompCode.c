@@ -77,6 +77,7 @@ Sets the left drive to a power
 integer value of new motor power
 */
 void setLeftDrivePower(int pwr) {
+	//wait1Msec(150);
 	const float K = 1;
 	motor[driveLeftFront] = K * pwr;
 	motor[driveLeftBack] = K * pwr;
@@ -138,30 +139,30 @@ integer value of encoder ticks to travel
 */
 void drive(int ticks, int timeStopMS = 100000, bool startSlewed = false) {
 	clearTimer(T4);
-	//	const int K_TURN = 0.5;
+	const int K_TURN = 0.5;
 	const int K_LDRV = 2.0; // Left drive
-	const int K_RDRV = 2.0;	// Right drive
-	//const int START_GYRO = SensorValue[gyro];
+	const int K_RDRV = 2.0;	// Right drive+
+	const int START_GYRO = SensorValue[gyro];
 	SensorValue[leftQuad] = 0;
 	SensorValue[rightQuad] = 0;
-	//int turnErr = SensorValue[gyro] - START_GYRO;
+	int turnErr = SensorValue[gyro] - START_GYRO;
 	int distLeft = ticks - SensorValue[leftQuad];
 	int distRight = ticks - SensorValue[rightQuad];
-	int pwrL = (int) (distLeft * K_LDRV); // - K_TURN * turnErr);
-	int pwrR = (int) (distRight * K_RDRV); // + K_TURN * turnErr);
+	int pwrL = (int) (distLeft * K_LDRV - K_TURN * turnErr);
+	int pwrR = (int) (distRight * K_RDRV + K_TURN * turnErr);
 	if (startSlewed)
 		slewCtrlDrive(sgn(ticks) * 127);
 	while (fabs(distLeft) > 25 && fabs(distRight) > 25 && time1[T4] < timeStopMS) {
-		//turnErr = SensorValue[gyro] - START_GYRO;
+		turnErr = SensorValue[gyro] - START_GYRO;
 		distLeft = ticks - SensorValue[leftQuad];
 		distRight = ticks - SensorValue[rightQuad];
-		pwrL = (int) (distLeft * K_LDRV);// - K_TURN * turnErr);
-		pwrR = (int) (distRight * K_RDRV);  // + K_TURN * turnErr);
+		pwrL = (int) (distLeft * K_LDRV - K_TURN * turnErr);
+		pwrR = (int) (distRight * K_RDRV + K_TURN * turnErr);
 		setLeftDrivePower(pwrL);
 		setRightDrivePower(pwrR);
 		//writeDebugStreamLine("Power Left: %i", pwrL);
 		//writeDebugStreamLine("Power Right: %i", pwrR);
-		//writeDebugStreamLine("Turn: %i", (int) (K_TURN * turnErr));
+		writeDebugStreamLine("Turn: %i", turnErr);
 	}
 	setAllDriveMotors(0);
 }
@@ -317,10 +318,10 @@ integer value of encoder ticks to travel
 @param wait
 wait default to 0
 */
-void driveAndMBLOut(int ticks, int wait = 0) {
+void driveAndMBLOut(int ticks, int timeToStopMS = 100000, int wait = 0) {
 	startTask(mblOutTask);
 	wait1Msec(wait);
-	drive(ticks);
+	drive(ticks, timeToStopMS);
 }
 
 /*
@@ -597,7 +598,8 @@ void setUpAuton() {
 	int choice = lcdUI2();
 	skipAuton = choice == 0;
 	progSkills = choice == SELECTIONS - 1;
-	side = (choice % 2 == 0) ? (LEFT) : (RIGHT);
+	side = (choice % 2 == 0) ? (RIGHT) : (LEFT);
+	writeDebugStreamLine("SIDE: %i", side);
 	if (choice == 1 || choice == 2)
 		score = FIVE;
 	else if (choice == 3 || choice == 4)
@@ -683,9 +685,8 @@ void _5autonV2() {
 	pickUpCone();
 	driveAndPlaceCone1(-1500);
 	int mark2 = time1[T1];
-	turnV3(side * 100);
+	turnV3(side * 180,  3000);
 	drive(100);
-	turnV3(side * 100);
 	mblOut();
 	drive(-300);
 	writeDebugStreamLine("5 Zone Auton Time (msec): %d", time1[T1]);
@@ -708,9 +709,9 @@ void _10auton() {
 	driveAndPlaceCone1(-1500);
 	int mark2 = time1[T1];
 	//turn(side * 2100);
-	turnV3(side * 110);
+	turnV3(side * 110, 2000);
 	drive(100);
-	turnV3(side * 100);
+	turnV3(side * 100, 2000);
 	driveAndMBLOut(400, 500);
 	while(goingOut) {}
 	drive(-300);
@@ -732,11 +733,11 @@ void _20auton() {
 	while (goingOut) {}
 	mblIn();
 	driveAndPlaceCone1(-1400);
-	turnV3(side * 130);
+	turnV3(side * 130, 2200);
 	drive(500);
-	turnV3(side * 90);
+	turnV3(side * 90, 1800);
 	drive(300);
-	driveAndMBLOut(500, 500);
+	driveAndMBLOut(500, 1000, 500);
 	while(goingOut) {}
 	drive(-500);
 	writeDebugStreamLine("20 Zone Auton Time (msec): %d", time1[T1]);
@@ -814,10 +815,10 @@ void runProgSkills() {
 	_20auton();
 	// Target Score: 22
 	turnV3(80); // turn
-	drive(-775); // drive backward
+	drive(-850); // drive backward
 	turnV3(45); // turn to line approx. up with wall
-	drive(-425, 1500); // back up to wall (attempt to align)
-	drive(450); // drive away from wall
+	drive(-600, 1500); // back up to wall (attempt to align)
+	drive(550); // drive away from wall
 	turnV3(40); // turn to face mbg
 	drive(600); // drive to mbg
 	mblIn(); // pick up mbg
@@ -828,11 +829,11 @@ void runProgSkills() {
 	// Target Score: 32
 	drive(-300);
 	turnV3(90); // turn
-	drive(-475); // drive backward
+	drive(-800); // drive backward
 	turnV3(45);
-	drive(-500, 1000);// drive backward
+	drive(-600, 1000);// drive backward
 	drive(450);
-	turnV3(40); // turn to face mbg
+	turnV3(38); // turn to face mbg
 	drive(1800); // drive across to next mbg
 	mblIn(); // pick up next mbg
 	while (intakingMBL) {}
@@ -842,15 +843,15 @@ void runProgSkills() {
 	//turnV3(45);
 	//drive(500);
 	//turnV3(90);
-	drive(750); // drive to scoring zone
+	drive(800); // drive to scoring zone
 	turnV3(-90); // turn to be inline with bar
 	drive(500); // drive forward
 	turnV3(90); // turn to line up with goal
 	drive(500); // drive toward goal
-	driveAndMBLOut(400, 700); // score mbg
+	driveAndMBLOut(350, 700); // score mbg
 	while(goingOut) {}
-	drive(-300, 1500); //  back out
-	turnV3(45); // turn to line up with parking zone
+	drive(-500, 1500); //  back out
+	turnV3(-45); // turn to line up with parking zone
 	drive(-2000); // drive to parking spot
 	writeDebugStreamLine("Prog. Skills: %d", time1[T1]/1000);
 }
@@ -903,7 +904,7 @@ void pre_auton() {
 	*/
 	writeDebugStreamLine("Reading Autonomous Settings.. ");
 	SensorValue[greenLED] = 1;
-	//setUpAuton();
+	setUpAuton();
 	SensorValue[greenLED] = 0;
 	writeDebugStreamLine("Initiated Gyro Calibration.. ");
 	displayLCDCenteredString(0, "Gyro is");
@@ -923,12 +924,13 @@ void pre_auton() {
 // autonomous based on jumper settings that have been passed on to global variables in pre_auton()
 task autonomous {
 	//loadFromJumpers();
-	//loadFromLCD();
-	//side = -1;
+	loadFromLCD();
+	//side = 1;
 	//_5autonV2();
 	//_10auton();
-	_20auton();
+	//_20auton();
 	//runProgSkills();
+	//writeDebugStreamLine("side %i", side);
 }
 
 
@@ -1026,6 +1028,7 @@ task usercontrol {
 			//turn(1800);
 			//turnV3(180, true);
 			//drive(2000);
+    	//drive(2000, true);
 		}
 
 		if (leftPadDown == 1) {

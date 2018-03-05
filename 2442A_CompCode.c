@@ -23,7 +23,7 @@
 #include "Vex_Competition_Includes.c"
 
 static const short POT_DZ = 50;
-static const int MBL_OUT_TIME = 2000; // mbl move out time (ms)
+static const int MBL_OUT_TIME = 2200; // mbl move out time (ms)
 static const int MBL_OUT_TIME_HOLDING = 2100;
 static const int MBL_IN_TIME = 2250; // mbl move in time (ms)
 static const int TOP_LIFT_UP = 600;
@@ -704,10 +704,11 @@ void _10auton() {
 	driveAndMBLIn(100);
 	while (intakingMBL) {}
 	placeCone();
-	int mark1 = time1[T1];
-	pickUpCone();
-	driveAndPlaceCone1(-1500);
-	int mark2 = time1[T1];
+	//int mark1 = time1[T1];
+	//pickUpCone();
+	//driveAndPlaceCone1(-1500);
+	//int mark2 = time1[T1];
+	drive(-1500);
 	//turn(side * 2100);
 	turnV3(side * 110, 2000);
 	drive(100);
@@ -716,7 +717,7 @@ void _10auton() {
 	while(goingOut) {}
 	drive(-300);
 	writeDebugStreamLine("10 Zone Auton Time (msec): %d", time1[T1]);
-	writeDebugStreamLine("Cone stacking time: %d", mark2-mark1);
+	//writeDebugStreamLine("Cone stacking time: %d", mark2-mark1);
 }
 
 void _20auton() {
@@ -732,7 +733,7 @@ void _20auton() {
 	//while (intakingMBL) {}
 	while (goingOut) {}
 	mblIn();
-	driveAndPlaceCone1(-1400);
+	driveAndPlaceCone1(-1500);
 	turnV3(side * 130, 2200);
 	drive(500);
 	turnV3(side * 90, 1800);
@@ -1029,6 +1030,7 @@ task usercontrol {
 			//turnV3(180, true);
 			//drive(2000);
     	//drive(2000, true);
+			mblOut();
 		}
 
 		if (leftPadDown == 1) {
